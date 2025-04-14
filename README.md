@@ -12,7 +12,7 @@ First step will be to create your own Snowflake Trial Account (our use the one p
 
 Open a Worksheet, copy/past the following code and execute all. This will setup the GIT repository and will copy everything you will be using during the lab.
 
-sql´´´
+``` sql
 CREATE or replace DATABASE CC_CORTEX_AGENTS_SUMMIT;
 
 CREATE OR REPLACE API INTEGRATION git_api_integration
@@ -25,7 +25,7 @@ CREATE OR REPLACE GIT REPOSITORY git_repo
     origin = 'https://github.com/ccarrero-sf/cortex_agents_summit';
 
 -- Make sure we get the latest files
-ALTER GIT REPOSITORY git_repo_chatbot FETCH;
+ALTER GIT REPOSITORY git_repo FETCH;
 
 -- Setup stage for Bikes Docs
 create or replace stage docs_bikes ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE') DIRECTORY = ( ENABLE = true );
@@ -36,6 +36,8 @@ COPY FILES
     FROM @CC_CORTEX_AGENTS_SUMMIT.PUBLIC.git_repo/branches/main/docs/bikes/
     PATTERN='.*[.]pdf';
 
+ALTER STAGE docs_bikes REFRESH;
+
 
 -- Setup stage for Ski Docs
 create or replace stage docs_ski ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE') DIRECTORY = ( ENABLE = true );
@@ -45,6 +47,23 @@ COPY FILES
     INTO @docs_ski/
     FROM @CC_CORTEX_AGENTS_SUMMIT.PUBLIC.git_repo/branches/main/docs/ski/
     PATTERN='.*[.]pdf';
-´´´
+
+ALTER STAGE docs_ski REFRESH;
+
+```
+
+## Setup Tools to be Used by the Agent
+
+We are going to be using a Snowflake Notebook to setup the Tools that will be used by the Snowflake Cortex Agents API. Ope the Notebook and follow each of the cells.
+
+-- Image to show how to open the Notebook from the GIT repository
+
+## Setup Streamlit App that uses Cortex Agents API
+
+
+
+
+
+
 
 
