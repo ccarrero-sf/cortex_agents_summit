@@ -54,11 +54,69 @@ ALTER STAGE docs_ski REFRESH;
 
 ## Setup Tools to be Used by the Agent
 
-We are going to be using a Snowflake Notebook to setup the Tools that will be used by the Snowflake Cortex Agents API. Ope the Notebook and follow each of the cells.
+We are going to be using a Snowflake Notebook to setup the Tools that will be used by the Snowflake Cortex Agents API. Open the Notebook and follow each of the cells.
 
--- Image to show how to open the Notebook from the GIT repository
+Select the Notebook that you have available in your Snowflake account in the Git Repositories:
+
+![image](img/1_create_notebook.png)
+
+Give a name to the notebook and run it in a Container using CPUs.
+
+![image](img/2_run_on_container.png)
+
+Once you have run the entire Notebook and you understand each of the cells, go back to this README to continue building the Cortex Agent.
+
+## Explore the Semantic Model to be used by Cortex Analyst Tool
+
+Under AI & ML -> Studio, select "Cortex Analyst"
+
+![image](img/3_cortex_analyst.png)
+
+Select the existing semantic.yaml file
+
+![image](img/4_select_semantic_file.png)
+
+You can try some analytical questions to test your semantic file:
+
+- What is the average revenue per transaction per sales channel?
+- What products are often bought by the same customers?
+
+We are going to explore the integration between Cortex Analys and Cortex Search to provide better results. If we take a look to the semantic model, click on DIM_ARTICLE -> Dimensions and edit ARTICLE_NAME:
+
+In the Dimention you will see that some Sample values have been provided:
+
+![image](img/5_sample_values.png)
+
+Let's see what happens if we ask for the following question:
+
+- What is the total sales for the carvers?
+
+You may have an answer like this:
+
+![image](img/6_response.png)
+
+Let's see what happens when we integrate the ARTICLE_NAME dimmension with the Cortex Search Service we created in the Notebook (_ARTICLE_NAME_SEARCH).
+
+- Remove the sample values provided
+- Click on + Search Service and add _ARTICLE_NAME_SEARCH
+
+It will look like this:
+
+![image](img/7_cortex_search_integration.png)
+
+Click on save, also save your semantic file (top right) and ask the same question again:
+
+- What is the total sales for the carvers?
+
+Notice that now Cortex Analyst is able to provide the right answer even because Cortex Search integration, we asked for "Carvers" but find that the right article to ask for is "Carver Skis":
+
+![image](img/8_right_answer.png)
+
+Now we have the tools ready to create our first App that leverages Cortex Agents API.
 
 ## Setup Streamlit App that uses Cortex Agents API
+
+Create one Streamlit App that leverages the following code:
 
 
 
