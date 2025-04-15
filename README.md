@@ -137,6 +137,11 @@ And click on Create.
 -- TBC: providing example questions.....
 -- TBC: Explain the Code for the API CALLS
 
+## Optional: Integrate Cortex Agents API with Slack
+
+[This guide: Getting Started with Cortex Agents and Slack](https://quickstarts.snowflake.com/guide/integrate_snowflake_cortex_agents_with_slack/index.html?index=..%2F..index#0) provides instructions to integrate Cortex Agents with Slack. We are going to debrief it here step by step for the Tools you have created in this hands-on lab.
+
+Follow the instructions from [this repository](https://github.com/ccarrero-sf/cortex_agents_summit_slack)
 
 
 
