@@ -116,7 +116,17 @@ Now we have the tools ready to create our first App that leverages Cortex Agents
 
 ## Setup Streamlit App that uses Cortex Agents API
 
-Create one Streamlit App that leverages the following code:
+Create one Streamlit App that uses the Cortex Agents API.
+
+Under Streamlit, click on + Streamlit App, select your database and PUBLIC schema. Remove the example code provided and paste the code from:
+
+[streamlit_app.py](https://github.com/ccarrero-sf/cortex_agents_summit/streamlit_app.py)
+
+-- TBC: providing example questions.....
+-- TBC: Explain the Code for the API CALLS
+
+
+
 
 
 
