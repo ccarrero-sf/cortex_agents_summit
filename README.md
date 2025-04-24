@@ -150,6 +150,8 @@ These are questions where the answer would be in the PDF documents. Examples:
 - What is the length of the carver skies?
 - What are the tires used by the road bike?
 
+![image](img/10_2_unstructured_questions.png)
+
 Fell free to explore the PDF docs and ask your own questions
 
 ### Unstructured data questions
@@ -164,6 +166,29 @@ Notice that for this query, the 3 tables are used. Also Cortex Search integratio
 
 - How much infant bike are we selling per month?
 - What are the top 5 customers buying the carvers?
+
+Observe the behavior of the following questions:
+
+- What is the monthly sales via online for the racing fast in central?
+
+Cortex Agents API send the request to Cortex Analyst, but it is not able to filter by customer_region:
+
+![image](img/14_central_question.png)
+
+If we take a look to the [semantic file](https://github.com/ccarrero-sf/cortex_agents_summit/blob/main/semantic_search.yaml) we can see that 'central' is not included as a sample value:
+
+```code
+      - name: CUSTOMER_REGION
+        expr: CUSTOMER_REGION
+        data_type: VARCHAR(16777216)
+        sample_values:
+          - North
+          - South
+          - East
+        description: Geographic region where the customer is located.
+```
+
+This would be a good opportunity to fine tune the semantic model. Either adding all possible values if they are not a lot or use Cortex Search as we have done before for the ARTICLE column.
 
 
 ## Step 6: Understand Cortex Agents API
