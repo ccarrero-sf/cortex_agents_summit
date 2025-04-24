@@ -8,9 +8,9 @@ A custom and unique dataset about bikes and ski will be used by this setup, but 
 
 First step will be to create your own Snowflake Trial Account (our use the one provided for you during this hands-on lab). Once you have created it, you will be using Snowflake GIT integration to get access to all data that will be needed during this lab.
 
-## Setup GIT Integration 
+## Step 1: Setup GIT Integration 
 
-Open a Worksheet, copy/past the following code and execute all. This will setup the GIT repository and will copy everything you will be using during the lab.
+Open a Worksheet, copy/paste the following code and execute all. This will setup the GIT repository and will copy everything you will be using during the lab.
 
 ``` sql
 CREATE or replace DATABASE CC_CORTEX_AGENTS_SUMMIT;
@@ -52,7 +52,7 @@ ALTER STAGE docs_ski REFRESH;
 
 ```
 
-## Setup Tools to be Used by the Agent
+## Step 2: Setup Tools to be Used by the Agent
 
 We are going to be using a Snowflake Notebook to setup the Tools that will be used by the Snowflake Cortex Agents API. Open the Notebook and follow each of the cells.
 
@@ -66,7 +66,7 @@ Give a name to the notebook and run it in a Container using CPUs.
 
 Once you have run the entire Notebook and you understand each of the cells, go back to this README to continue building the Cortex Agent.
 
-## Explore the Semantic Model to be used by Cortex Analyst Tool
+## Step 3: Explore the Semantic Model to be used by Cortex Analyst Tool
 
 Under AI & ML -> Studio, select "Cortex Analyst"
 
@@ -114,7 +114,7 @@ Notice that now Cortex Analyst is able to provide the right answer even because 
 
 Now we have the tools ready to create our first App that leverages Cortex Agents API.
 
-## Setup Streamlit App that uses Cortex Agents API
+## Step 4: Setup Streamlit App that uses Cortex Agents API
 
 Create one Streamlit App that uses the Cortex Agents API.
 
@@ -132,16 +132,54 @@ Select the streamlit_app.py file:
 
 And click on Create.
 
+## Step 5: Explore the App
+
+Open the Streamlit App and try some of these questions:
+
+#### Unstructured data questions
+
+These are questions where the answer would be in the PDF documents. Examples:
+
+- What is the guarantee of the premium bike?
+- What is the length of the carver skies?
+- What are the tires used by the road bike?
+
+Fell free to explore the PDF docs and ask your own questions
+
+#### Unstructured data questions
+
+These are analytical questions where answer would be in Snowflake Tables. Examples:
+
+- How much are we selling for the carvers per year for the North region?
+
+Notice that for this query, the 3 tables are used. Also Cortex Search integration in the semantic model understand that the article name is "Carver Skis":
+
+![image](img/11_carver_query.png)
+
+- How much infant bike are we selling per month?
+- What are the top 5 customers buying the carvers?
+
+
+
+
+## Step 6: Understand Cortex Agents API
+
 
 
 -- TBC: providing example questions.....
 -- TBC: Explain the Code for the API CALLS
 
-## Optional: Integrate Cortex Agents API with Slack
+## Step 5: Optional: Integrate Cortex Agents API with Slack
 
 [This guide: Getting Started with Cortex Agents and Slack](https://quickstarts.snowflake.com/guide/integrate_snowflake_cortex_agents_with_slack/index.html?index=..%2F..index#0) provides instructions to integrate Cortex Agents with Slack. We are going to debrief it here step by step for the Tools you have created in this hands-on lab.
 
 Follow the instructions from [this repository](https://github.com/ccarrero-sf/cortex_agents_summit_slack)
+
+## Step 6: Optional - Setup Cortex Agents Demo Env
+
+[Cortex Agents in Snowflake](https://github.com/michaelgorkow/snowflake_cortex_agents_demo/) is an excellent Git repository developed by Michael Gorkow that using GIT integration provides an automatic setup to develop several use cases. It will automatically create a Streamlit App where you can select what tools you want to use.
+
+It also include several use cases for you to try. After running this HOL where you should have an understanding or how to use the different tools and APIs, this is a great Demo to run.
 
 
 
