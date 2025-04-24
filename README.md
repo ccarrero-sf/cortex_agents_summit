@@ -68,6 +68,8 @@ Once you have run the entire Notebook and you understand each of the cells, go b
 
 ## Step 3: Explore the Semantic Model to be used by Cortex Analyst Tool
 
+### Open the existing semantic model
+
 Under AI & ML -> Studio, select "Cortex Analyst"
 
 ![image](img/3_cortex_analyst.png)
@@ -76,12 +78,16 @@ Select the existing semantic.yaml file
 
 ![image](img/4_select_semantic_file.png)
 
+### Test the semantic model
+
 You can try some analytical questions to test your semantic file:
 
 - What is the average revenue per transaction per sales channel?
 - What products are often bought by the same customers?
 
-We are going to explore the integration between Cortex Analys and Cortex Search to provide better results. If we take a look to the semantic model, click on DIM_ARTICLE -> Dimensions and edit ARTICLE_NAME:
+### Cortex Analyst and Cortex Search Integration
+
+We are going to explore the integration between Cortex Analyst and Cortex Search to provide better results. If we take a look to the semantic model, click on DIM_ARTICLE -> Dimensions and edit ARTICLE_NAME:
 
 In the Dimention you will see that some Sample values have been provided:
 
@@ -136,7 +142,7 @@ And click on Create.
 
 Open the Streamlit App and try some of these questions:
 
-#### Unstructured data questions
+### Unstructured data questions
 
 These are questions where the answer would be in the PDF documents. Examples:
 
@@ -146,7 +152,7 @@ These are questions where the answer would be in the PDF documents. Examples:
 
 Fell free to explore the PDF docs and ask your own questions
 
-#### Unstructured data questions
+### Unstructured data questions
 
 These are analytical questions where answer would be in Snowflake Tables. Examples:
 
@@ -160,14 +166,20 @@ Notice that for this query, the 3 tables are used. Also Cortex Search integratio
 - What are the top 5 customers buying the carvers?
 
 
-
-
 ## Step 6: Understand Cortex Agents API
 
+When calling the Cortex Agents API, we define the tools the Agent can use in that call. You can read the simple [Streamlit App](https://github.com/ccarrero-sf/cortex_agents_summit/blob/main/streamlit_app.py) you setup to understand the basics before trying to create something more ellaborated.
 
+We define the API_ENDPOINT for the Agent, and how to access the different tools we are going to use. In this lab we have two Cortex Search Services to retrieve information from PDFs about bikes and ski, and one Cortex Analyst Service to retrieve analytical information from Snowflake tables.
 
--- TBC: providing example questions.....
--- TBC: Explain the Code for the API CALLS
+The Cortex Search Services point to the Services that we created in the Notebook. The Cortex Analyst uses the semantic model we have verified before.
+
+![image](img/12_api_1.png)
+
+Those services are added into the payload we send to the Cortex Agents API. We define the model we want to use to build the final response, the tools to be used and any specific instruction to build the response:
+
+![image](img/13_api_2.png)
+
 
 ## Step 5: Optional: Integrate Cortex Agents API with Slack
 
