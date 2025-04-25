@@ -194,9 +194,172 @@ If you have run these steps via the Notebook (recommended so you avoid copy/past
 Afte this step, we have now two tools ready to retrieve context from PDF files.
 
 ## Step 3: Setup Structured Data to be Used by the Agent
+Another Tool that we will be providing to the Cortex Agent will be Cortex Analyst which will provide the capability to extract information from Snowflake Tables. In the API call we will be providing the location of a Semantic file that contains information about the business terminology to describe the data.
 
+First we are going to create some syntethic data about the bikes and ski products that we have.
+
+We are going to create the following tables with content:
+
+**DIM_ARTICLE – Article/Item Dimension**
+
+Purpose: Stores descriptive information about the products (articles) being sold.
+
+Key Columns:
+
+    ARTICLE_ID (Primary Key): Unique identifier for each article.
+    ARTICLE_NAME: Full name/description of the product.
+    ARTICLE_CATEGORY: Product category (e.g., Bike, Skis, Ski Boots).
+    ARTICLE_BRAND: Manufacturer or brand (e.g., Mondracer, Carver).
+    ARTICLE_COLOR: Dominant color for the article.
+    ARTICLE_PRICE: Standard unit price of the article.
+    DIM_CUSTOMER – Customer Dimension
+
+**DIM_CUSTOMER – Customer Dimension**
+
+Purpose: Contains demographic and segmentation info about each customer.
+
+Key Columns:
+
+    CUSTOMER_ID (Primary Key): Unique identifier for each customer.
+    CUSTOMER_NAME: Display name for the customer.
+    CUSTOMER_REGION: Geographic region (e.g., North, South).
+    CUSTOMER_AGE: Age of the customer.
+    CUSTOMER_GENDER: Gender (Male/Female).
+    CUSTOMER_SEGMENT: Marketing segment (e.g., Premium, Regular, Occasional).
+    FACT_SALES – Sales Transactions Fact Table
+
+**FACT_SALES – Sales Transactions Fact Table**
+
+Purpose: Captures individual sales transactions (facts) with references to article and customer details.
+
+Key Columns:
+
+    SALE_ID (Primary Key): Unique identifier for the transaction.
+    ARTICLE_ID (Foreign Key): Links to DIM_ARTICLE.
+    CUSTOMER_ID (Foreign Key): Links to DIM_CUSTOMER.
+    DATE_SALES: Date when the sale occurred.
+    QUANTITY_SOLD: Number of units sold in the transaction.
+    TOTAL_PRICE: Total transaction value (unit price × quantity).
+    SALES_CHANNEL: Sales channel used (e.g., Online, In-Store, Partner).
+    PROMOTION_APPLIED: Boolean indicating if the sale involved a promotion or discount.
+
+You can continue executing the Notebook cells to create some syntetic data. 
+
+First some data for articles:
+
+```SQL
+CREATE OR REPLACE TABLE DIM_ARTICLE (
+    ARTICLE_ID INT PRIMARY KEY,
+    ARTICLE_NAME STRING,
+    ARTICLE_CATEGORY STRING,
+    ARTICLE_BRAND STRING,
+    ARTICLE_COLOR STRING,
+    ARTICLE_PRICE FLOAT
+);
+
+INSERT INTO DIM_ARTICLE (ARTICLE_ID, ARTICLE_NAME, ARTICLE_CATEGORY, ARTICLE_BRAND, ARTICLE_COLOR, ARTICLE_PRICE)
+VALUES 
+(1, 'Mondracer Infant Bike', 'Bike', 'Mondracer', 'Red', 3000),
+(2, 'Premium Bicycle', 'Bike', 'Veloci', 'Blue', 9000),
+(3, 'Ski Boots TDBootz Special', 'Ski Boots', 'TDBootz', 'Black', 600),
+(4, 'The Ultimate Downhill Bike', 'Bike', 'Graviton', 'Green', 10000),
+(5, 'The Xtreme Road Bike 105 SL', 'Bike', 'Xtreme', 'White', 8500),
+(6, 'Carver Skis', 'Skis', 'Carver', 'Orange', 790),
+(7, 'Outpiste Skis', 'Skis', 'Outpiste', 'Yellow', 900),
+(8, 'Racing Fast Skis', 'Skis', 'RacerX', 'Blue', 950);
+```
+
+Data for Customers:
+
+```SQL
+CREATE OR REPLACE TABLE DIM_CUSTOMER (
+    CUSTOMER_ID INT PRIMARY KEY,
+    CUSTOMER_NAME STRING,
+    CUSTOMER_REGION STRING,
+    CUSTOMER_AGE INT,
+    CUSTOMER_GENDER STRING,
+    CUSTOMER_SEGMENT STRING
+);
+
+INSERT INTO DIM_CUSTOMER (CUSTOMER_ID, CUSTOMER_NAME, CUSTOMER_REGION, CUSTOMER_AGE, CUSTOMER_GENDER, CUSTOMER_SEGMENT)
+SELECT 
+    SEQ4() AS CUSTOMER_ID,
+    'Customer ' || SEQ4() AS CUSTOMER_NAME,
+    CASE MOD(SEQ4(), 5)
+        WHEN 0 THEN 'North'
+        WHEN 1 THEN 'South'
+        WHEN 2 THEN 'East'
+        WHEN 3 THEN 'West'
+        ELSE 'Central'
+    END AS CUSTOMER_REGION,
+    UNIFORM(18, 65, RANDOM()) AS CUSTOMER_AGE,
+    CASE MOD(SEQ4(), 2)
+        WHEN 0 THEN 'Male'
+        ELSE 'Female'
+    END AS CUSTOMER_GENDER,
+    CASE MOD(SEQ4(), 3)
+        WHEN 0 THEN 'Premium'
+        WHEN 1 THEN 'Regular'
+        ELSE 'Occasional'
+    END AS CUSTOMER_SEGMENT
+FROM TABLE(GENERATOR(ROWCOUNT => 5000));
+```
+
+And Sales data:
+
+```SQL
+CREATE OR REPLACE TABLE FACT_SALES (
+    SALE_ID INT PRIMARY KEY,
+    ARTICLE_ID INT,
+    DATE_SALES DATE,
+    CUSTOMER_ID INT,
+    QUANTITY_SOLD INT,
+    TOTAL_PRICE FLOAT,
+    SALES_CHANNEL STRING,
+    PROMOTION_APPLIED BOOLEAN,
+    FOREIGN KEY (ARTICLE_ID) REFERENCES DIM_ARTICLE(ARTICLE_ID),
+    FOREIGN KEY (CUSTOMER_ID) REFERENCES DIM_CUSTOMER(CUSTOMER_ID)
+);
+
+-- Populating Sales Fact Table with new attributes
+INSERT INTO FACT_SALES (SALE_ID, ARTICLE_ID, DATE_SALES, CUSTOMER_ID, QUANTITY_SOLD, TOTAL_PRICE, SALES_CHANNEL, PROMOTION_APPLIED)
+SELECT 
+    SEQ4() AS SALE_ID,
+    A.ARTICLE_ID,
+    DATEADD(DAY, UNIFORM(-1095, 0, RANDOM()), CURRENT_DATE) AS DATE_SALES,
+    UNIFORM(1, 5000, RANDOM()) AS CUSTOMER_ID,
+    UNIFORM(1, 10, RANDOM()) AS QUANTITY_SOLD,
+    UNIFORM(1, 10, RANDOM()) * A.ARTICLE_PRICE AS TOTAL_PRICE,
+    CASE MOD(SEQ4(), 3)
+        WHEN 0 THEN 'Online'
+        WHEN 1 THEN 'In-Store'
+        ELSE 'Partner'
+    END AS SALES_CHANNEL,
+    CASE MOD(SEQ4(), 4)
+        WHEN 0 THEN TRUE
+        ELSE FALSE
+    END AS PROMOTION_APPLIED
+FROM DIM_ARTICLE A
+JOIN TABLE(GENERATOR(ROWCOUNT => 10000)) ON TRUE
+ORDER BY DATE_SALES;
+```
+
+In the next section you are going to explore the Semantic File. We have prepared two files already that you can copy from the GIT repository:
+
+```SQL
+create or replace stage semantic_files ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE') DIRECTORY = ( ENABLE = true );
+
+COPY FILES
+    INTO @semantic_files/
+    FROM @CC_CORTEX_AGENTS_SUMMIT.PUBLIC.git_repo/branches/main/
+    FILES = ('semantic.yaml', 'semantic_search.yaml');
+```
 
 ## Step 4: Explore/Create the Semantic Model to be used by Cortex Analyst Tool
+
+The [semantic model](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst/semantic-model-spec) map business terminology to database schema and add contextual meaning. It allows [Cortex Analyst](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst) to come up with the right SQL given a question using natural language.
+
+We have provided a couple of semantic models already generated for you to explore. 
 
 ### Open the existing semantic model
 
@@ -231,7 +394,21 @@ You may have an answer like this:
 
 ![image](img/6_response.png)
 
-Let's see what happens when we integrate the ARTICLE_NAME dimmension with the Cortex Search Service we created in the Notebook (_ARTICLE_NAME_SEARCH).
+Let's see what happens when we integrate the ARTICLE_NAME dimmension with the Cortex Search Service we created in the Notebook (_ARTICLE_NAME_SEARCH). If you have not run it already in the Notebook, this is the code to be executed:
+
+```SQL
+CREATE OR REPLACE CORTEX SEARCH SERVICE _ARTICLE_NAME_SEARCH
+  ON ARTICLE_NAME
+  WAREHOUSE = COMPUTE_WH
+  TARGET_LAG = '1 hour'
+  EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
+AS (
+  SELECT
+      DISTINCT ARTICLE_NAME
+  FROM DIM_ARTICLE
+);
+```
+In the UI:
 
 - Remove the sample values provided
 - Click on + Search Service and add _ARTICLE_NAME_SEARCH
@@ -252,7 +429,7 @@ Now we have the tools ready to create our first App that leverages Cortex Agents
 
 ## Step 5: Setup Streamlit App that uses Cortex Agents API
 
-Create one Streamlit App that uses the Cortex Agents API.
+Create one Streamlit App that uses the [Cortex Agents](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents) API.
 
 We are going to leverate this initial code:
 
@@ -323,7 +500,7 @@ This would be a good opportunity to fine tune the semantic model. Either adding 
 
 ## Step 7: Understand Cortex Agents API
 
-When calling the Cortex Agents API, we define the tools the Agent can use in that call. You can read the simple [Streamlit App](https://github.com/ccarrero-sf/cortex_agents_summit/blob/main/streamlit_app.py) you setup to understand the basics before trying to create something more ellaborated.
+When calling the [Cortex Agents](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-agents) API, we define the tools the Agent can use in that call. You can read the simple [Streamlit App](https://github.com/ccarrero-sf/cortex_agents_summit/blob/main/streamlit_app.py) you setup to understand the basics before trying to create something more ellaborated.
 
 We define the API_ENDPOINT for the Agent, and how to access the different tools we are going to use. In this lab we have two Cortex Search Services to retrieve information from PDFs about bikes and ski, and one Cortex Analyst Service to retrieve analytical information from Snowflake tables.
 
