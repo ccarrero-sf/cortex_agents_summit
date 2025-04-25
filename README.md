@@ -52,7 +52,7 @@ ALTER STAGE docs_ski REFRESH;
 
 ```
 
-## Step 2: Setup Tools to be Used by the Agent
+## Step 2: Setup Unstructured Data Tools to be Used by the Agent
 
 We are going to be using a Snowflake Notebook to setup the Tools that will be used by the Snowflake Cortex Agents API. Open the Notebook and follow each of the cells.
 
@@ -64,9 +64,139 @@ Give a name to the notebook and run it in a Container using CPUs.
 
 ![image](img/2_run_on_container.png)
 
-Once you have run the entire Notebook and you understand each of the cells, go back to this README to continue building the Cortex Agent.
+you can run the entire Notebook and check each one of the cells. This is the explanation for Unstructured Data section.
 
-## Step 3: Explore the Semantic Model to be used by Cortex Analyst Tool
+Thank you to the GIT integration done in the previous step, the PDF files that we are going to be used have been already copied into your Snowflake account. We are using two sets of documents, one for bike and other for ski. For this demo, we are creating two different tools to manage each type of document. 
+
+Check the content of the directory with bikes documents. Note this is an internal staging area but it could also be an external S3 location, so there is no need to really copy the PDFs into Snowflake. 
+
+```SQL
+SELECT * FROM DIRECTORY('@DOCS_BIKES');
+```
+
+To parse the documents, we are going to use the native Cortex [PARSE_DOCUMENT](https://docs.snowflake.com/en/sql-reference/functions/parse_document-snowflake-cortex). For LAYOUT we can specify OCR or LAYOUT. We will be using LAYOUT so the content is markdown formatted.
+
+```SQL
+
+CREATE OR REPLACE TABLE RAW_TEXT_BIKES AS
+SELECT 
+    RELATIVE_PATH,
+    TO_VARCHAR (
+        SNOWFLAKE.CORTEX.PARSE_DOCUMENT (
+            '@DOCS_BIKES',
+            RELATIVE_PATH,
+            {'mode': 'LAYOUT'} ):content
+        ) AS EXTRACTED_LAYOUT 
+FROM 
+    DIRECTORY('@DOCS_BIKES');
+
+SELECT * FROM RAW_TEXT_BIKES;
+```
+
+Next we are going to split the content of the PDF file into chunks with some overlaps to make sure information and context is not lost. You can read more about token limits and text splitting in the [Cortex Search Documentation ](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview)
+
+To split the text we also use the native Cortex [SPLIT_TEXT_RECURSIVE_CHARACTER](https://docs.snowflake.com/en/sql-reference/functions/split_text_recursive_character-snowflake-cortex). 
+
+```SQL
+-- Create chunks from extracted content
+
+CREATE OR REPLACE TABLE CHUNKED_TEXT_BIKES AS
+SELECT
+   RELATIVE_PATH,
+   c.INDEX::INTEGER AS CHUNK_INDEX,
+   c.value::TEXT AS CHUNK_TEXT
+FROM
+   RAW_TEXT_BIKES,
+   LATERAL FLATTEN( input => SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER (
+      EXTRACTED_LAYOUT,
+      'markdown',
+      1512,
+      256,
+      ['\n\n', '\n', ' ', '']
+   )) c;
+
+SELECT * FROM CHUNKED_TEXT_BIKES;
+```
+
+Now that we have processed the PDF couments, we can create a [Cortex Search Service](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview) that automatically will created embeddings and indexes over the chunks of text extracted. Read the docs for the different embeddings models available.
+
+When creating the service, we also specify what is the TARGET_LAG. That is the frequency used by the service to maintain the service with new or deleted data. Check the [Automatic Processing of New Documents](https://quickstarts.snowflake.com/guide/ask_questions_to_your_own_documents_with_snowflake_cortex_search/index.html?index=..%2F..index#6) of that quickstart to understand how easy is to maintain your RAG updated when using Cortex Search.
+
+```SQL
+CREATE OR REPLACE CORTEX SEARCH SERVICE BIKES_RAG_TOOL
+  ON CHUNK_TEXT
+  ATTRIBUTES RELATIVE_PATH, CHUNK_INDEX
+  WAREHOUSE = COMPUTE_WH
+  TARGET_LAG = '1 hour'
+  EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
+AS (
+  SELECT
+      CHUNK_TEXT,
+      RELATIVE_PATH,
+      CHUNK_INDEX
+  FROM CHUNKED_TEXT_BIKES
+);
+```
+
+Now follow same steps to create another Cortex Search Service for the Ski documentation:
+
+```SQL
+SELECT * FROM DIRECTORY('@DOCS_SKI');
+
+CREATE OR REPLACE TABLE RAW_TEXT_SKI AS
+SELECT 
+    RELATIVE_PATH,
+    TO_VARCHAR (
+        SNOWFLAKE.CORTEX.PARSE_DOCUMENT (
+            '@DOCS_SKI',
+            RELATIVE_PATH,
+            {'mode': 'LAYOUT'} ):content
+        ) AS EXTRACTED_LAYOUT 
+FROM 
+    DIRECTORY('@DOCS_SKI');
+
+SELECT * FROM RAW_TEXT_SKI;
+
+CREATE OR REPLACE TABLE CHUNKED_TEXT_SKI AS
+SELECT
+   RELATIVE_PATH,
+   c.INDEX::INTEGER AS CHUNK_INDEX,
+   c.value::TEXT AS CHUNK_TEXT
+FROM
+   RAW_TEXT_SKI,
+   LATERAL FLATTEN( input => SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER (
+      EXTRACTED_LAYOUT,
+      'markdown',
+      1512,
+      256,
+      ['\n\n', '\n', ' ', '']
+   )) c;
+
+SELECT * FROM CHUNKED_TEXT_SKI;
+
+CREATE OR REPLACE CORTEX SEARCH SERVICE SKI_RAG_TOOL
+  ON CHUNK_TEXT
+  ATTRIBUTES RELATIVE_PATH, CHUNK_INDEX
+  WAREHOUSE = COMPUTE_WH
+  TARGET_LAG = '1 hour'
+  EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
+AS (
+  SELECT
+      CHUNK_TEXT,
+      RELATIVE_PATH,
+      CHUNK_INDEX
+  FROM CHUNKED_TEXT_SKI
+);
+```
+
+If you have run these steps via the Notebook (recommended so you avoid copy/paste) you have a cell to the the tool API.
+
+Afte this step, we have now two tools ready to retrieve context from PDF files.
+
+## Step 3: Setup Structured Data to be Used by the Agent
+
+
+## Step 4: Explore/Create the Semantic Model to be used by Cortex Analyst Tool
 
 ### Open the existing semantic model
 
@@ -120,7 +250,7 @@ Notice that now Cortex Analyst is able to provide the right answer even because 
 
 Now we have the tools ready to create our first App that leverages Cortex Agents API.
 
-## Step 4: Setup Streamlit App that uses Cortex Agents API
+## Step 5: Setup Streamlit App that uses Cortex Agents API
 
 Create one Streamlit App that uses the Cortex Agents API.
 
@@ -138,7 +268,7 @@ Select the streamlit_app.py file:
 
 And click on Create.
 
-## Step 5: Explore the App
+## Step 6: Explore the App
 
 Open the Streamlit App and try some of these questions:
 
@@ -191,7 +321,7 @@ If we take a look to the [semantic file](https://github.com/ccarrero-sf/cortex_a
 This would be a good opportunity to fine tune the semantic model. Either adding all possible values if they are not a lot or use Cortex Search as we have done before for the ARTICLE column.
 
 
-## Step 6: Understand Cortex Agents API
+## Step 7: Understand Cortex Agents API
 
 When calling the Cortex Agents API, we define the tools the Agent can use in that call. You can read the simple [Streamlit App](https://github.com/ccarrero-sf/cortex_agents_summit/blob/main/streamlit_app.py) you setup to understand the basics before trying to create something more ellaborated.
 
@@ -206,13 +336,13 @@ Those services are added into the payload we send to the Cortex Agents API. We d
 ![image](img/13_api_2.png)
 
 
-## Step 5: Optional: Integrate Cortex Agents API with Slack
+## Step 8: Optional: Integrate Cortex Agents API with Slack
 
 [This guide: Getting Started with Cortex Agents and Slack](https://quickstarts.snowflake.com/guide/integrate_snowflake_cortex_agents_with_slack/index.html?index=..%2F..index#0) provides instructions to integrate Cortex Agents with Slack. We are going to debrief it here step by step for the Tools you have created in this hands-on lab.
 
 Follow the instructions from [this repository](https://github.com/ccarrero-sf/cortex_agents_summit_slack)
 
-## Step 6: Optional - Setup Cortex Agents Demo Env
+## Step 9: Optional - Setup Cortex Agents Demo Env
 
 [Cortex Agents in Snowflake](https://github.com/michaelgorkow/snowflake_cortex_agents_demo/) is an excellent Git repository developed by Michael Gorkow that using GIT integration provides an automatic setup to develop several use cases. It will automatically create a Streamlit App where you can select what tools you want to use.
 
