@@ -27,28 +27,15 @@ CREATE OR REPLACE GIT REPOSITORY git_repo
 -- Make sure we get the latest files
 ALTER GIT REPOSITORY git_repo FETCH;
 
--- Setup stage for Bikes Docs
-create or replace stage docs_bikes ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE') DIRECTORY = ( ENABLE = true );
+-- Setup stage for  Docs
+create or replace stage docs ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE') DIRECTORY = ( ENABLE = true );
 
 -- Copy the docs for bikes
 COPY FILES
-    INTO @docs_bikes/
-    FROM @CC_CORTEX_AGENTS_SUMMIT.PUBLIC.git_repo/branches/main/docs/bikes/
-    PATTERN='.*[.]pdf';
+    INTO @docs/
+    FROM @CC_CORTEX_AGENTS_SUMMIT.PUBLIC.git_repo/branches/main/docs/;
 
-ALTER STAGE docs_bikes REFRESH;
-
-
--- Setup stage for Ski Docs
-create or replace stage docs_ski ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE') DIRECTORY = ( ENABLE = true );
-
--- Copy the docs for ski
-COPY FILES
-    INTO @docs_ski/
-    FROM @CC_CORTEX_AGENTS_SUMMIT.PUBLIC.git_repo/branches/main/docs/ski/
-    PATTERN='.*[.]pdf';
-
-ALTER STAGE docs_ski REFRESH;
+ALTER STAGE docs REFRESH;
 
 ```
 
