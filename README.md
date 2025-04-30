@@ -53,132 +53,166 @@ Give a name to the notebook and run it in a Container using CPUs.
 
 you can run the entire Notebook and check each one of the cells. This is the explanation for Unstructured Data section.
 
-Thank you to the GIT integration done in the previous step, the PDF files that we are going to be used have been already copied into your Snowflake account. We are using two sets of documents, one for bike and other for ski. For this demo, we are creating two different tools to manage each type of document. 
+Thanks to the GIT integration done in the previous step, the PDF and IMAGE files that we are going to be used have been already copied into your Snowflake account. We are using two sets of documents, one for bike and other for ski and images for both. 
 
-Check the content of the directory with bikes documents. Note this is an internal staging area but it could also be an external S3 location, so there is no need to really copy the PDFs into Snowflake. 
+Check the content of the directory with documents (PDF and JPEG). Note this is an internal staging area but it could also be an external S3 location, so there is no need to really copy the PDFs into Snowflake. 
 
 ```SQL
-SELECT * FROM DIRECTORY('@DOCS_BIKES');
+SELECT * FROM DIRECTORY('@DOCS');
 ```
+### PDF Documents
 
 To parse the documents, we are going to use the native Cortex [PARSE_DOCUMENT](https://docs.snowflake.com/en/sql-reference/functions/parse_document-snowflake-cortex). For LAYOUT we can specify OCR or LAYOUT. We will be using LAYOUT so the content is markdown formatted.
 
 ```SQL
 
-CREATE OR REPLACE TABLE RAW_TEXT_BIKES AS
+CREATE OR REPLACE TEMPORARY TABLE RAW_TEXT AS
 SELECT 
     RELATIVE_PATH,
     TO_VARCHAR (
         SNOWFLAKE.CORTEX.PARSE_DOCUMENT (
-            '@DOCS_BIKES',
+            '@DOCS',
             RELATIVE_PATH,
             {'mode': 'LAYOUT'} ):content
         ) AS EXTRACTED_LAYOUT 
 FROM 
-    DIRECTORY('@DOCS_BIKES');
+    DIRECTORY('@DOCS')
+WHERE
+    RELATIVE_PATH LIKE '%.pdf';
 
-SELECT * FROM RAW_TEXT_BIKES;
+SELECT * FROM RAW_TEXT;
 ```
 
 Next we are going to split the content of the PDF file into chunks with some overlaps to make sure information and context is not lost. You can read more about token limits and text splitting in the [Cortex Search Documentation ](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview)
+
+Create the table that will be used by Cortex Search Service as a Tool for Cortex Agents in order to retrieve information from PDF and JPEG files:
+
+```SQL
+create or replace TABLE DOCS_CHUNKS_TABLE ( 
+    RELATIVE_PATH VARCHAR(16777216), -- Relative path to the PDF file
+    CHUNK VARCHAR(16777216), -- Piece of text
+    CHUNK_INDEX INTEGER, -- Index for the text
+    CATEGORY VARCHAR(16777216) -- Will hold the document category to enable filtering
+);
+```
 
 To split the text we also use the native Cortex [SPLIT_TEXT_RECURSIVE_CHARACTER](https://docs.snowflake.com/en/sql-reference/functions/split_text_recursive_character-snowflake-cortex). 
 
 ```SQL
 -- Create chunks from extracted content
+insert into DOCS_CHUNKS_TABLE (relative_path, chunk, chunk_index)
 
-CREATE OR REPLACE TABLE CHUNKED_TEXT_BIKES AS
-SELECT
-   RELATIVE_PATH,
-   c.INDEX::INTEGER AS CHUNK_INDEX,
-   c.value::TEXT AS CHUNK_TEXT
-FROM
-   RAW_TEXT_BIKES,
-   LATERAL FLATTEN( input => SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER (
-      EXTRACTED_LAYOUT,
-      'markdown',
-      1512,
-      256,
-      ['\n\n', '\n', ' ', '']
-   )) c;
+    select relative_path, 
+            c.value::TEXT as chunk,
+            c.INDEX::INTEGER as chunk_index
+            
+    from 
+        raw_text,
+        LATERAL FLATTEN( input => SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER (
+              EXTRACTED_LAYOUT,
+              'markdown',
+              1512,
+              256,
+              ['\n\n', '\n', ' ', '']
+           )) c;
 
-SELECT * FROM CHUNKED_TEXT_BIKES;
+SELECT * FROM DOCS_CHUNKS_TABLE;
 ```
 
-Now that we have processed the PDF couments, we can create a [Cortex Search Service](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview) that automatically will created embeddings and indexes over the chunks of text extracted. Read the docs for the different embeddings models available.
+As a demo, we are goign to show how CLASSIFY_TEXT Cortex function to classify the document type. We have two classes, Bike and Snow, and we pass the document title and the first chunk of the document to the function
+
+```SQL
+CREATE OR REPLACE TEMPORARY TABLE docs_categories AS WITH unique_documents AS (
+  SELECT
+    DISTINCT relative_path, chunk
+  FROM
+    docs_chunks_table
+  WHERE 
+    chunk_index = 0
+  ),
+ docs_category_cte AS (
+  SELECT
+    relative_path,
+    TRIM(snowflake.cortex.CLASSIFY_TEXT (
+      'Title:' || relative_path || 'Content:' || chunk, ['Bike', 'Snow']
+     )['label'], '"') AS category
+  FROM
+    unique_documents
+)
+SELECT
+  *
+FROM
+  docs_category_cte;
+```
+
+You can check the categories:
+
+```SQL
+select * from docs_categories;
+```
+And update the table:
+
+```SQL
+update docs_chunks_table 
+  SET category = docs_categories.category
+  from docs_categories
+  where  docs_chunks_table.relative_path = docs_categories.relative_path;
+```
+### IMAGE Documents
+
+Now let's process the images we have for our bikes and skies. We are going to use COMPLETE multi-modeal function asking for an image description and classification. We add it into the DOCS_CHUNKS_TABLE where we also have the PDF documentation:
+
+```SQL
+insert into DOCS_CHUNKS_TABLE (relative_path, chunk, chunk_index, category)
+SELECT 
+    RELATIVE_PATH,
+    CONCAT('This is a picture describing the bike: '|| RELATIVE_PATH || 
+        'THIS IS THE DESCRIPTION: ' ||
+        SNOWFLAKE.CORTEX.COMPLETE('claude-3-5-sonnet',
+        'DESCRIBE THIS IMAGE: ',
+        TO_FILE('@DOCS', RELATIVE_PATH))) as chunk,
+    0,
+    SNOWFLAKE.CORTEX.COMPLETE('claude-3-5-sonnet',
+        'Classify this image, respond only with Bike or Snow: ',
+        TO_FILE('@DOCS', RELATIVE_PATH)) as category,
+FROM 
+    DIRECTORY('@DOCS')
+WHERE
+    RELATIVE_PATH LIKE '%.jpeg';
+```
+
+Check the descriptions created and that the Tool will be used to retrieve information when needed:
+
+```SQL
+select * from DOCS_CHUNKS_TABLE
+    where RELATIVE_PATH LIKE '%.jpeg';
+```
+
+### Enable Cortex Search Service
+
+Now that we have processed the PDF and IMAGE documents, we can create a [Cortex Search Service](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-search/cortex-search-overview) that automatically will created embeddings and indexes over the chunks of text extracted. Read the docs for the different embeddings models available.
 
 When creating the service, we also specify what is the TARGET_LAG. That is the frequency used by the service to maintain the service with new or deleted data. Check the [Automatic Processing of New Documents](https://quickstarts.snowflake.com/guide/ask_questions_to_your_own_documents_with_snowflake_cortex_search/index.html?index=..%2F..index#6) of that quickstart to understand how easy is to maintain your RAG updated when using Cortex Search.
 
 ```SQL
-CREATE OR REPLACE CORTEX SEARCH SERVICE BIKES_RAG_TOOL
-  ON CHUNK_TEXT
-  ATTRIBUTES RELATIVE_PATH, CHUNK_INDEX
-  WAREHOUSE = COMPUTE_WH
-  TARGET_LAG = '1 hour'
-  EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
-AS (
-  SELECT
-      CHUNK_TEXT,
-      RELATIVE_PATH,
-      CHUNK_INDEX
-  FROM CHUNKED_TEXT_BIKES
-);
-```
-
-Now follow same steps to create another Cortex Search Service for the Ski documentation:
-
-```SQL
-SELECT * FROM DIRECTORY('@DOCS_SKI');
-
-CREATE OR REPLACE TABLE RAW_TEXT_SKI AS
-SELECT 
-    RELATIVE_PATH,
-    TO_VARCHAR (
-        SNOWFLAKE.CORTEX.PARSE_DOCUMENT (
-            '@DOCS_SKI',
-            RELATIVE_PATH,
-            {'mode': 'LAYOUT'} ):content
-        ) AS EXTRACTED_LAYOUT 
-FROM 
-    DIRECTORY('@DOCS_SKI');
-
-SELECT * FROM RAW_TEXT_SKI;
-
-CREATE OR REPLACE TABLE CHUNKED_TEXT_SKI AS
-SELECT
-   RELATIVE_PATH,
-   c.INDEX::INTEGER AS CHUNK_INDEX,
-   c.value::TEXT AS CHUNK_TEXT
-FROM
-   RAW_TEXT_SKI,
-   LATERAL FLATTEN( input => SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER (
-      EXTRACTED_LAYOUT,
-      'markdown',
-      1512,
-      256,
-      ['\n\n', '\n', ' ', '']
-   )) c;
-
-SELECT * FROM CHUNKED_TEXT_SKI;
-
-CREATE OR REPLACE CORTEX SEARCH SERVICE SKI_RAG_TOOL
-  ON CHUNK_TEXT
-  ATTRIBUTES RELATIVE_PATH, CHUNK_INDEX
-  WAREHOUSE = COMPUTE_WH
-  TARGET_LAG = '1 hour'
-  EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
-AS (
-  SELECT
-      CHUNK_TEXT,
-      RELATIVE_PATH,
-      CHUNK_INDEX
-  FROM CHUNKED_TEXT_SKI
+create or replace CORTEX SEARCH SERVICE DOCUMENTATION_TOOL
+ON chunk
+ATTRIBUTES relative_path, category
+warehouse = COMPUTE_WH
+TARGET_LAG = '1 hour'
+EMBEDDING_MODEL = 'snowflake-arctic-embed-l-v2.0'
+as (
+    select chunk,
+        chunk_index,
+        relative_path,
+        category
+    from docs_chunks_table
 );
 ```
 
 If you have run these steps via the Notebook (recommended so you avoid copy/paste) you have a cell to the the tool API.
 
-Afte this step, we have now two tools ready to retrieve context from PDF files.
+After this step, we have one tools ready to retrieve context from PDF and IMAGE files.
 
 ## Step 3: Setup Structured Data to be Used by the Agent
 Another Tool that we will be providing to the Cortex Agent will be Cortex Analyst which will provide the capability to extract information from Snowflake Tables. In the API call we will be providing the location of a Semantic file that contains information about the business terminology to describe the data.
