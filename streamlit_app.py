@@ -2,16 +2,17 @@ import streamlit as st
 import json
 import _snowflake
 from snowflake.snowpark.context import get_active_session
+from typing import Dict, List, Any, Optional, Tuple, Union
+from streamlit_extras.stylable_container import stylable_container
+
 
 session = get_active_session()
 
 API_ENDPOINT = "/api/v2/cortex/agent:run"
 API_TIMEOUT = 50000  # in milliseconds
 
-CORTEX_SEARCH_BIKES = "CC_CORTEX_AGENTS_SUMMIT.PUBLIC.BIKES_RAG_TOOL"
-CORTEX_SEARCH_SKI = "CC_CORTEX_AGENTS_SUMMIT.PUBLIC.SKI_RAG_TOOL"
-
-SEMANTIC_MODEL = "@CC_CORTEX_AGENTS_SUMMIT.PUBLIC.SEMANTIC_FILES/semantic.yaml"
+CORTEX_SEARCH_DOCUMENTATION = "CC_CORTEX_AGENTS_SUMMIT.PUBLIC.DOCUMENTATION_TOOL"
+SEMANTIC_MODEL = "@CC_CORTEX_AGENTS_SUMMIT.PUBLIC.SEMANTIC_FILES/semantic_search.yaml"
 
 def run_snowflake_query(query):
     try:
@@ -39,21 +40,20 @@ def snowflake_api_call(query: str, limit: int = 10):
             
             {"tool_spec": 
                 {"type": "cortex_search",
-                 "name": "Bikes Product Search"}},
-            
-            {"tool_spec": 
-                {"type": "cortex_search",
-                 "name": "Ski Product Search"}},
+                 "name": "Docs and Images Search"}},
+
              
         ],
         "tool_resources": {
             "Sales Analyst": 
                 {"semantic_model_file": SEMANTIC_MODEL},
-             "Bikes Product Search": 
-                 {"name": CORTEX_SEARCH_BIKES, "max_results": 2},
-             "Ski Product Search": 
-                 {"name": CORTEX_SEARCH_SKI, "max_results": 2},          
-        },
+             "Docs and Images Search": 
+                 {"name": CORTEX_SEARCH_DOCUMENTATION, 
+                  "max_results": 3, 
+                  "title_column":"RELATIVE_PATH",
+                  "id_column": "CHUNK_INDEX",
+                  "experimental": {"returnConfidenceScores": True}},
+          },    
         "response_instruction": "You will be asked about bikes or ski specifications or analytical data. Be concise in your answer"
     }   
      
@@ -62,7 +62,7 @@ def snowflake_api_call(query: str, limit: int = 10):
             "POST",  # method
             API_ENDPOINT,  # path
             {},  # headers
-            {},  # params
+            {'stream': True},  # query params
             payload,  # body
             None,  # request_guid
             API_TIMEOUT,  # timeout in milliseconds,
@@ -79,7 +79,7 @@ def snowflake_api_call(query: str, limit: int = 10):
             st.error("❌ Failed to parse API response. The server may have returned an invalid JSON format.")
             st.error(f"Raw response: {resp['content'][:200]}...")
             return None
-            
+
         return response_content
             
     except Exception as e:
@@ -109,11 +109,14 @@ def process_sse_response(response):
                         if 'content' in tool_results:
                             for result in tool_results['content']:
                                 if result.get('type') == 'json':
-                                    text += result.get('json', {}).get('text', '')
-                                    search_results = result.get('json', {}).get('searchResults', [])
+                                    json_data = result.get('json', {})
+                                    text += json_data.get('text', '')
+                                    search_results = json_data.get('searchResults', [])
                                     for search_result in search_results:
-                                        citations.append({'source_id':search_result.get('source_id',''), 'doc_id':search_result.get('doc_id', '')})
-                                    sql = result.get('json', {}).get('sql', '')
+                                        citations.append({'source_id': search_result.get('source_id', ''), 
+                                                          'doc_title': search_result.get('doc_title', ''),
+                                                          'doc_chunk': search_result.get('doc_id')})
+                                    sql = json_data.get('sql', '')
                     if content_type == 'text':
                         text += content_item.get('text', '')
                             
@@ -124,6 +127,54 @@ def process_sse_response(response):
         st.error(f"Error processing events: {str(e)}")
         
     return text, sql, citations
+
+def display_citations(citations):
+
+    st.text(citations)
+    for citation in citations:
+        source_id = citation.get("source_id", "")
+        doc_title = citation.get("doc_title", "")
+        doc_chunk = citation.get("doc_chunk", "")
+    
+        if (doc_title.lower().endswith("jpeg")):
+            query = f"SELECT GET_PRESIGNED_URL('@DOCS', '{doc_title}') as URL"
+            result = run_snowflake_query(query)
+            result_df = result.to_pandas()
+            if not result_df.empty:
+                url = result_df.iloc[0, 0]
+            else:
+                url = "No URL available"
+    
+            with st.expander(f"[{source_id}]"):
+                st.image(url)
+
+        if (doc_title.lower().endswith("pdf")):
+            query = f"""
+                    SELECT CHUNK from DOCS_CHUNKS_TABLE
+                    WHERE RELATIVE_PATH = '{doc_title}' AND
+                          CHUNK_INDEX = {doc_chunk}
+            """
+            result = run_snowflake_query(query)
+            result_df = result.to_pandas()
+            if not result_df.empty:
+                text = result_df.iloc[0, 0]
+            else:
+                text = "No text available"
+
+            with st.expander(f"[{source_id}]"):
+                with stylable_container(
+                        f"[{source_id}]",
+                        css_styles="""
+                        {
+                            border: 1px solid #e0e7ff;
+                            border-radius: 8px;
+                            padding: 14px;
+                            margin-bottom: 12px;
+                            background-color: #f5f8ff;
+                        }
+                        """
+                    ):
+                    st.markdown(text)
 
 def main():
     st.title("Intelligent Sales Assistant")
@@ -162,21 +213,8 @@ def main():
                 with st.chat_message("assistant"):
                     st.markdown(text.replace("•", "\n\n"))
                     if citations:
-                        st.write("Citations:")
-                        for citation in citations:
-                            doc_id = citation.get("doc_id", "")
-                            if doc_id:
-                                query = f"SELECT transcript_text FROM sales_conversations WHERE conversation_id = '{doc_id}'"
-                                result = run_snowflake_query(query)
-                                result_df = result.to_pandas()
-                                if not result_df.empty:
-                                    transcript_text = result_df.iloc[0, 0]
-                                else:
-                                    transcript_text = "No transcript available"
-                    
-                                with st.expander(f"[{citation.get('source_id', '')}]"):
-                                    st.write(transcript_text)
-
+                        display_citations(citations)
+    
             # Display SQL if present
             if sql:
                 st.markdown("### Generated SQL")
