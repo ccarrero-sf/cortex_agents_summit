@@ -280,14 +280,14 @@ CREATE OR REPLACE TABLE DIM_ARTICLE (
 
 INSERT INTO DIM_ARTICLE (ARTICLE_ID, ARTICLE_NAME, ARTICLE_CATEGORY, ARTICLE_BRAND, ARTICLE_COLOR, ARTICLE_PRICE)
 VALUES 
-(1, 'Mondracer Infant Bike', 'Bike', 'Mondracer', 'Red', 3000),
-(2, 'Premium Bicycle', 'Bike', 'Veloci', 'Blue', 9000),
-(3, 'Ski Boots TDBootz Special', 'Ski Boots', 'TDBootz', 'Black', 600),
-(4, 'The Ultimate Downhill Bike', 'Bike', 'Graviton', 'Green', 10000),
-(5, 'The Xtreme Road Bike 105 SL', 'Bike', 'Xtreme', 'White', 8500),
-(6, 'Carver Skis', 'Skis', 'Carver', 'Orange', 790),
-(7, 'Outpiste Skis', 'Skis', 'Outpiste', 'Yellow', 900),
-(8, 'Racing Fast Skis', 'Skis', 'RacerX', 'Blue', 950);
+(1, 'Mondracer Infant Bike', 'Bike', 'Mondracer', 'Green', 3000),
+(2, 'Premium Bicycle', 'Bike', 'Veloci', 'Red', 9000),
+(3, 'Ski Boots TDBootz Special', 'Ski Boots', 'TDBootz', 'White', 600),
+(4, 'The Ultimate Downhill Bike', 'Bike', 'Graviton', 'Red', 10000),
+(5, 'The Xtreme Road Bike 105 SL', 'Bike', 'Xtreme', 'Grey', 8500),
+(6, 'Carver Skis', 'Skis', 'Carver', 'White', 790),
+(7, 'Outpiste Skis', 'Skis', 'Outpiste', 'Grey', 900),
+(8, 'Racing Fast Skis', 'Skis', 'RacerX', 'Grey', 950);
 ```
 
 Data for Customers:
@@ -474,13 +474,25 @@ Open the Streamlit App and try some of these questions:
 
 These are questions where the answer would be in the PDF documents. Examples:
 
-- What is the guarantee of the premium bike?
-- What is the length of the carver skies?
-- What are the tires used by the road bike?
+- **What is the guarantee of the premium bike?**
 
 ![image](img/10_2_unstructured_questions.png)
 
-Fell free to explore the PDF docs and ask your own questions
+The streamlit_app.py code contains a display_citations() function as example to show what are the pieces of information used by Cortex Agent to answer the questions. In this case we can see how it citates the warranty information extracted from the PDF file. 
+
+Try other questions:
+
+- **What is the length of the carver skies?**
+
+![image](img/10_2_carvers.png)
+
+As we have processed images, the description extracted can also be used to answer questions when using Cortex Agents. Here one example:
+
+- **Is there any brand in the frame of the downhill bike?**
+
+![image](img/10_2_santa_cruz.png)
+
+Fell free to explore the PDF docs and IMAGES files and ask your own questions
 
 ### Unstructured data questions
 

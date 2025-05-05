@@ -130,7 +130,6 @@ def process_sse_response(response):
 
 def display_citations(citations):
 
-    st.text(citations)
     for citation in citations:
         source_id = citation.get("source_id", "")
         doc_title = citation.get("doc_title", "")
