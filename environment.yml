@@ -4,3 +4,4 @@ channels:
 dependencies:
   - snowflake-ml-python=*
   - snowflake.core=*
+  - streamlit-extras=*
