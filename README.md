@@ -494,7 +494,7 @@ Since we have processed images, the extracted descriptions can also be used by C
 
 Fell free to explore the PDF documents and IMAGES files and ask your own questions
 
-### Unstructured data questions
+### Structured data questions
 
 These are analytical questions where the answers can be found in Snowflake Tables. Some examples:
 
