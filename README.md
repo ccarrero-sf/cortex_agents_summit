@@ -482,7 +482,7 @@ The streamlit_app.py code contains a display_citations() function as an example 
 
 Try other questions:
 
-- **What is the length of the carver skies?**
+- **What is the length of the carver skis?**
 
 ![image](img/10_2_carvers.png)
 
