@@ -22,6 +22,7 @@ tables:
           database: CC_CORTEX_AGENTS_SUMMIT
           schema: PUBLIC
           service: _ARTICLE_NAME_SEARCH
+          literal_column: ARTICLE_NAME
       - name: ARTICLE_CATEGORY
         expr: ARTICLE_CATEGORY
         data_type: VARCHAR(16777216)
